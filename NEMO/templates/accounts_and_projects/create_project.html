@@ -38,7 +38,11 @@
 		<div class="form-group">
             <label for="application_identifier" class="control-label col-sm-2"><b>{{ "projects_and_accounts"|customization:"project_application_identifier_name" }}</b></label>
 			<div class="col-sm-4">
-				<input type="text" name="application_identifier" id="application_identifier" maxlength="100" class="form-control" value="{{ form.application_identifier.value|default_if_none:'' }}" required>
+          			 <select id="application_identifier" name="application_identifier" class="form-control">
+                                                {% for t in form.fields.application_identifier.choices %}
+                                                        <option value="{{ t.0 }}" {% if t.0 == form.application_identifier.value|to_int %}selected{% endif %}>{{ t.1 }}</option>
+                                                {% endfor %}
+                                        </select>
 			</div>
 			<div class="col-sm-6 form-control-static danger-highlight">
 				{{ form.application_identifier.errors|striptags }}

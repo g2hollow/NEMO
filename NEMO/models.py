@@ -2413,7 +2413,6 @@ class AccountType(BaseCategory):
 
 class Account(SerializationByNameModel):
     name = models.CharField(max_length=100, unique=True)
-    type = models.ForeignKey(AccountType, null=True, blank=True, on_delete=models.SET_NULL)
     start_date = models.DateField(null=True, blank=True)
     active = models.BooleanField(
         default=True,
@@ -2432,7 +2431,7 @@ class Account(SerializationByNameModel):
 
 class Project(SerializationByNameModel):
     name = models.CharField(max_length=100, unique=True)
-    application_identifier = models.CharField(max_length=100)
+    application_identifier = models.ForeignKey(AccountType, null=True, blank=True, on_delete=models.SET_NULL)
     start_date = models.DateField(null=True, blank=True)
     account = models.ForeignKey(
         Account,
