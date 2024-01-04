@@ -86,6 +86,7 @@ router.register(r"project_disciplines", api.ProjectDisciplineViewSet)
 router.register(r"projects", api.ProjectViewSet)
 router.register(r"qualifications", api.QualificationViewSet)
 router.register(r"reservations", api.ReservationViewSet)
+router.register(r"sensor_data", api.SensorDataViewSet)
 router.register(r"reservation_configuration_options", api.ConfigurationOptionViewSet)
 router.register(r"resources", api.ResourceViewSet)
 router.register(r"scheduled_outages", api.ScheduledOutageViewSet)
@@ -608,7 +609,6 @@ if settings.ALLOW_CONDITIONAL_URLS:
         # Billing:
         path("billing/", usage.billing, name="billing"),
     ]
-
 
 if settings.DEBUG:
     # Static files

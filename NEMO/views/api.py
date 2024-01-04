@@ -9,6 +9,9 @@ from rest_framework.renderers import BrowsableAPIRenderer
 from rest_framework.response import Response
 from rest_framework.serializers import ListSerializer
 
+from NEMO.apps.sensors.models import SensorData
+from NEMO.apps.sensors.serializers import SensorDataSerializer
+
 from NEMO.models import (
     Account,
     AccountType,
@@ -299,6 +302,16 @@ class ReservationViewSet(ModelViewSet):
         "validated": ["exact"],
         "validated_by": ["exact", "in", "isnull"],
         "question_data": ["isempty"],
+    }
+
+
+class SensorDataViewSet(ModelViewSet):
+    filename = "sensor_data"
+    queryset = SensorData.objects.all()
+    serializer_class = SensorDataSerializer
+    filterset_fields = {
+        "created_date": ["month", "year", "day", "gte", "gt", "lte", "lt"],
+        "value": ["exact", "in", "gte", "gt", "lte", "lt"],
     }
 
 
