@@ -1,0 +1,29 @@
+[{
+    "model": "NEMO.user",
+    "fields": {
+      "username": "captain",
+      "first_name": "Captain",
+      "last_name": "Nemo",
+      "email": "captain.nemo@nautilus.com",
+      "domain": "",
+      "notes": null,
+      "badge_number": "1",
+      "access_expiration": null,
+      "is_active": true,
+      "is_staff": true,
+      "is_user_office": false,
+      "is_accounting_officer": false,
+      "is_service_personnel": false,
+      "is_technician": false,
+      "is_facility_manager": true,
+      "is_superuser": true,
+      "training_required": false,
+      "date_joined": "2012-12-10T16:43:37Z",
+      "last_login": "2022-03-14T12:52:58.154Z",
+      "physical_access_levels": [],
+      "groups": [],
+      "user_permissions": [],
+      "managed_projects": []
+    }
+  }
+]
