@@ -473,7 +473,7 @@ class ConfigurationHistoryAdmin(admin.ModelAdmin):
 
 @register(Account)
 class AccountAdmin(admin.ModelAdmin):
-    list_display = ("name", "id", "active", "start_date")
+    list_display = ("name", "id", "active", "type", "start_date")
     search_fields = ("name",)
     list_filter = ("active", ("type", admin.RelatedOnlyFieldListFilter), "start_date")
 
