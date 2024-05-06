@@ -184,7 +184,8 @@ class NEMOPolicy:
         """Check that the user is allowed to disable the tool."""
         current_usage_event = tool.get_current_usage_event()
         if (
-            current_usage_event.operator != operator
+            not ToolCustomization.get_bool("tool_control_allow_qualified_user_logoff")
+            and current_usage_event.operator != operator
             and current_usage_event.user != operator
             and not (operator.is_staff or operator.is_user_office)
         ):
