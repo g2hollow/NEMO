@@ -293,7 +293,7 @@
 		{# Display tool control... #}
 		<form id="tool_control">
 			{% if tool.in_use %}
-				{% if tool.get_current_usage_event.operator.id == user.id or tool.get_current_usage_event.user.id == user.id %}
+				{% if tool.get_current_usage_event.operator.id == user.id or tool.get_current_usage_event.user.id == user.id or tool_control_allow_qualified_user_logoff %}
 					{{ post_usage_questions }}
 					{% if tool.allow_delayed_logoff and not tool.delayed_logoff_in_progress %}
 						<div class="form-group">
