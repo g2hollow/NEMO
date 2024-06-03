@@ -53,8 +53,9 @@ def create(request):
     """
     This function handles feedback from users. This could be a problem report or shutdown notification.
     """
+    user: User = request.user
     images_form = TaskImagesForm(request.POST, request.FILES)
-    form = TaskForm(request.user, data=request.POST)
+    form = TaskForm(user, data=request.POST)
     if not form.is_valid() or not images_form.is_valid():
         errors = nice_errors(form)
         errors.update(nice_errors(images_form))
@@ -67,14 +68,25 @@ def create(request):
     task = form.save()
     task_images = save_task_images(request, task)
 
-    if not settings.ALLOW_CONDITIONAL_URLS and task.force_shutdown:
-        site_title = ApplicationCustomization.get("site_title")
+    save_error = save_task(request, task, user, task_images)
+
+    if save_error:
         dictionary = {
             "title": "Task creation failed",
             "heading": "Something went wrong while reporting the problem",
-            "content": f"Tool control is only available on campus. When creating a task, you can't force a tool shutdown while using {site_title} off campus.",
+            "content": save_error,
         }
         return render(request, "acknowledgement.html", dictionary)
+
+    return redirect("tool_control")
+
+
+def save_task(request, task: Task, user: User, task_images: List[TaskImages] = None):
+    task.save()
+    if not settings.ALLOW_CONDITIONAL_URLS and task.force_shutdown:
+        site_title = ApplicationCustomization.get("site_title")
+
+        return f"Tool control is only available on campus. When creating a task, you can't force a tool shutdown while using {site_title} off campus."
 
     if task.force_shutdown:
         # Shut down the tool.
@@ -96,15 +108,16 @@ def create(request):
             + " problem was identified as a safety hazard.\n\n"
         )
         concern += task.problem_description
-        issue = SafetyIssue.objects.create(reporter=request.user, location=task.tool.location, concern=concern)
+        issue = SafetyIssue.objects.create(reporter=user, location=task.tool.location, concern=concern)
         send_safety_email_notification(request, issue)
 
-    send_new_task_emails(request, task, task_images)
-    set_task_status(request, task, request.POST.get("status"), request.user)
-    return redirect("tool_control")
+    send_new_task_emails(request, task, user, task_images)
+    set_task_status(request, task, request.POST.get("status"), user)
+
+    return None
 
 
-def send_new_task_emails(request, task: Task, task_images: List[TaskImages]):
+def send_new_task_emails(request, task: Task, user, task_images: List[TaskImages]):
     message = get_media_file_contents("new_task_email.html")
     attachments = None
     if task_images:
@@ -115,7 +128,7 @@ def send_new_task_emails(request, task: Task, task_images: List[TaskImages]):
             "template_color": (
                 bootstrap_primary_color("danger") if task.force_shutdown else bootstrap_primary_color("warning")
             ),
-            "user": request.user,
+            "user": user,
             "task": task,
             "tool": task.tool,
             "tool_control_absolute_url": get_full_url(task.tool.get_absolute_url(), request),
@@ -137,7 +150,7 @@ def send_new_task_emails(request, task: Task, task_images: List[TaskImages]):
         send_mail(
             subject=subject,
             content=message,
-            from_email=request.user.email,
+            from_email=user.email,
             to=recipients,
             attachments=attachments,
             email_category=EmailCategory.TASKS,

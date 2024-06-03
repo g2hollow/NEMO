@@ -2,6 +2,7 @@ import csv
 import importlib
 import os
 from calendar import monthrange
+from copy import deepcopy
 from datetime import date, datetime, time
 from email import encoders
 from email.mime.base import MIMEBase
@@ -258,6 +259,14 @@ def get_month_timeframe(date_str: str = None):
     return first_of_the_month, last_of_the_month
 
 
+def get_day_timeframe(day_date: datetime.date = None):
+    start = day_date
+    if not day_date:
+        start = date.today()
+    start = datetime.combine(start, time())
+    return beginning_of_the_day(start), end_of_the_day(start)
+
+
 def extract_optional_beginning_and_end_dates(parameters, date_only=False, time_only=False):
     """
     Extract the "start" and "end" parameters from an HTTP request
@@ -402,6 +411,13 @@ def end_of_the_day(t: datetime, in_local_timezone=True) -> datetime:
     """Returns the END of today's day (11:59:59.999999 PM of the current day) in LOCAL time."""
     midnight = t.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=None)
     return localize(midnight) if in_local_timezone else midnight
+
+
+def is_date_in_datetime_range(date_to_check: date, start_date: datetime, end_date: datetime) -> bool:
+    # use timezone of start_date for date_to_check
+    start_of_day = beginning_of_the_day(datetime.combine(date_to_check, time()))
+    end_of_day = end_of_the_day(datetime.combine(date_to_check, time()))
+    return start_date <= end_of_day and start_of_day <= end_date
 
 
 def remove_duplicates(iterable: Union[List, Set, Tuple]) -> List:
@@ -745,6 +761,14 @@ def create_ics(
 
     attachment = create_email_attachment(ics, maintype="text", subtype="calendar", method=method_name)
     return attachment
+
+
+def new_model_copy(instance):
+    new_instance = deepcopy(instance)
+    new_instance.id = None
+    new_instance.pk = None
+    new_instance._state.adding = True
+    return new_instance
 
 
 def slugify_underscore(name: str):

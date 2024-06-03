@@ -15,6 +15,8 @@ from NEMO.apps.sensors.serializers import SensorDataSerializer
 from NEMO.models import (
     Account,
     AccountType,
+    Alert,
+    AlertCategory,
     Area,
     AreaAccessRecord,
     Configuration,
@@ -42,6 +44,8 @@ from NEMO.rest_pagination import NEMOPageNumberPagination
 from NEMO.serializers import (
     AccountSerializer,
     AccountTypeSerializer,
+    AlertCategorySerializer,
+    AlertSerializer,
     AreaAccessRecordSerializer,
     AreaSerializer,
     BillableItemSerializer,
@@ -132,6 +136,36 @@ class ModelViewSet(XLSXFileMixin, viewsets.ModelViewSet):
 
     def get_filename(self, *args, **kwargs):
         return f"{self.filename}-{export_format_datetime()}.xlsx"
+
+
+class AlertCategoryViewSet(viewsets.ModelViewSet):
+    filename = "alert_categories"
+    queryset = AlertCategory.objects.all()
+    serializer_class = AlertCategorySerializer
+    filterset_fields = {
+        "id": ["exact", "in"],
+        "name": ["exact", "iexact", "contains", "icontains"],
+    }
+
+
+class AlertViewSet(ModelViewSet):
+    filename = "alerts"
+    queryset = Alert.objects.all()
+    serializer_class = AlertSerializer
+    filterset_fields = {
+        "id": ["exact", "in"],
+        "title": ["exact", "iexact", "contains", "icontains"],
+        "category": ["exact", "iexact"],
+        "contents": ["contains", "icontains"],
+        "creation_time": ["month", "year", "day", "gte", "gt", "lte", "lt"],
+        "creator": ["exact", "in"],
+        "user": ["exact", "in"],
+        "debut_time": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
+        "expiration_time": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
+        "dismissible": ["exact"],
+        "expired": ["exact"],
+        "deleted": ["exact"],
+    }
 
 
 class UserViewSet(ModelViewSet):

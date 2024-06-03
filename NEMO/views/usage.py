@@ -1,6 +1,6 @@
 from collections import defaultdict
 from logging import getLogger
-from typing import List, Set
+from typing import Callable, List, Set
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -27,6 +27,7 @@ from NEMO.utilities import (
     BasicDisplayTable,
     export_format_datetime,
     extract_optional_beginning_and_end_dates,
+    get_day_timeframe,
     get_month_timeframe,
     month_list,
 )
@@ -83,11 +84,11 @@ def get_project_applications():
     return applications
 
 
-def date_parameters_dictionary(request):
+def date_parameters_dictionary(request, default_function: Callable = get_month_timeframe):
     if request.GET.get("start") and request.GET.get("end"):
         start_date, end_date = extract_optional_beginning_and_end_dates(request.GET, date_only=True)
     else:
-        start_date, end_date = get_month_timeframe()
+        start_date, end_date = default_function()
     kind = request.GET.get("type")
     identifier = request.GET.get("id")
     existing_adjustments = defaultdict(list)
@@ -114,7 +115,7 @@ def date_parameters_dictionary(request):
 def usage(request):
     user: User = request.user
     user_managed_projects = get_managed_projects(user)
-    base_dictionary, start_date, end_date, kind, identifier = date_parameters_dictionary(request)
+    base_dictionary, start_date, end_date, kind, identifier = date_parameters_dictionary(request, get_month_timeframe)
     customer_filter = Q(customer=user) | Q(project__in=user_managed_projects)
     user_filter = Q(user=user) | Q(project__in=user_managed_projects)
     trainee_filter = Q(trainee=user) | Q(project__in=user_managed_projects)
@@ -180,7 +181,7 @@ def usage(request):
 @require_GET
 def billing(request):
     user: User = request.user
-    base_dictionary, start_date, end_date, kind, identifier = date_parameters_dictionary(request)
+    base_dictionary, start_date, end_date, kind, identifier = date_parameters_dictionary(request, get_month_timeframe)
     if not base_dictionary["billing_service"]:
         return redirect("usage")
     user_project_applications = list(user.active_projects().values_list("application_identifier", flat=True)) + list(
@@ -198,7 +199,7 @@ def billing(request):
 @accounting_or_user_office_or_manager_required
 @require_GET
 def project_usage(request):
-    base_dictionary, start_date, end_date, kind, identifier = date_parameters_dictionary(request)
+    base_dictionary, start_date, end_date, kind, identifier = date_parameters_dictionary(request, get_day_timeframe)
 
     area_access, consumables, missed_reservations, staff_charges, training_sessions, usage_events = (
         None,
@@ -228,32 +229,30 @@ def project_usage(request):
             projects = user.active_projects()
             selection = str(user)
 
+        area_access = AreaAccessRecord.objects.filter(end__gt=start_date, end__lte=end_date).order_by("-start")
+        consumables = ConsumableWithdraw.objects.filter(date__gt=start_date, date__lte=end_date)
+        missed_reservations = Reservation.objects.filter(missed=True, end__gt=start_date, end__lte=end_date)
+        staff_charges = StaffCharge.objects.filter(end__gt=start_date, end__lte=end_date)
+        training_sessions = TrainingSession.objects.filter(date__gt=start_date, date__lte=end_date)
+        usage_events = UsageEvent.objects.filter(end__gt=start_date, end__lte=end_date)
         if projects:
-            area_access = AreaAccessRecord.objects.filter(
-                project__in=projects, end__gt=start_date, end__lte=end_date
-            ).order_by("-start")
-            consumables = ConsumableWithdraw.objects.filter(
-                project__in=projects, date__gt=start_date, date__lte=end_date
+            area_access = area_access.filter(project__in=projects)
+            consumables = consumables.filter(project__in=projects)
+            missed_reservations = missed_reservations.filter(project__in=projects)
+            staff_charges = staff_charges.filter(project__in=projects)
+            training_sessions = training_sessions.filter(project__in=projects)
+            usage_events = usage_events.filter(project__in=projects)
+        if user:
+            area_access = area_access.filter(customer=user)
+            consumables = consumables.filter(customer=user)
+            missed_reservations = missed_reservations.filter(user=user)
+            staff_charges = staff_charges.filter(customer=user)
+            training_sessions = training_sessions.filter(trainee=user)
+            usage_events = usage_events.filter(user=user)
+        if bool(request.GET.get("csv", False)):
+            return csv_export_response(
+                usage_events, area_access, training_sessions, staff_charges, consumables, missed_reservations
             )
-            missed_reservations = Reservation.objects.filter(
-                project__in=projects, missed=True, end__gt=start_date, end__lte=end_date
-            )
-            staff_charges = StaffCharge.objects.filter(project__in=projects, end__gt=start_date, end__lte=end_date)
-            training_sessions = TrainingSession.objects.filter(
-                project__in=projects, date__gt=start_date, date__lte=end_date
-            )
-            usage_events = UsageEvent.objects.filter(project__in=projects, end__gt=start_date, end__lte=end_date)
-            if user:
-                area_access = area_access.filter(customer=user)
-                consumables = consumables.filter(customer=user)
-                missed_reservations = missed_reservations.filter(user=user)
-                staff_charges = staff_charges.filter(customer=user)
-                training_sessions = training_sessions.filter(trainee=user)
-                usage_events = usage_events.filter(user=user)
-            if bool(request.GET.get("csv", False)):
-                return csv_export_response(
-                    usage_events, area_access, training_sessions, staff_charges, consumables, missed_reservations
-                )
     except:
         pass
     dictionary = {
@@ -284,7 +283,7 @@ def project_usage(request):
 @accounting_or_user_office_or_manager_required
 @require_GET
 def project_billing(request):
-    base_dictionary, start_date, end_date, kind, identifier = date_parameters_dictionary(request)
+    base_dictionary, start_date, end_date, kind, identifier = date_parameters_dictionary(request, get_day_timeframe)
     if not base_dictionary["billing_service"]:
         return redirect("project_usage")
     base_dictionary["project_autocomplete"] = True

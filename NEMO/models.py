@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime
 import os
 import sys
-from copy import deepcopy
 from datetime import timedelta
 from enum import Enum
 from html import escape
@@ -17,7 +16,7 @@ from django.contrib.auth.models import BaseUserManager, Group, Permission, Permi
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, validate_comma_separated_integer_list
 from django.db import connections, models, transaction
 from django.db.models import Q
 from django.db.models.manager import Manager
@@ -49,6 +48,7 @@ from NEMO.utilities import (
     get_hazard_logo_filename,
     get_task_image_filename,
     get_tool_image_filename,
+    new_model_copy,
     render_email_template,
     send_mail,
     supported_embedded_extensions,
@@ -155,6 +155,10 @@ class BaseDocumentModel(BaseModel):
     name = models.CharField(
         null=True, blank=True, max_length=200, help_text="The optional name to display for this document"
     )
+    display_order = models.IntegerField(
+        default=1,
+        help_text="The order in which choices are displayed on the landing page, from left to right, top to bottom. Lower values are displayed first.",
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def get_filename_upload(self, filename):
@@ -190,7 +194,7 @@ class BaseDocumentModel(BaseModel):
             raise ValidationError({"document": "Choose either document or URL but not both."})
 
     class Meta:
-        ordering = ["-uploaded_at"]
+        ordering = ["display_order", "-uploaded_at"]
         abstract = True
 
 
@@ -361,6 +365,11 @@ class UserPreferences(BaseModel):
         default=EmailNotificationType.BOTH_EMAILS,
         choices=EmailNotificationType.on_choices(),
         help_text="Tool qualification expiration reminders",
+    )
+    email_send_wait_list_notification_emails = models.PositiveIntegerField(
+        default=EmailNotificationType.BOTH_EMAILS,
+        choices=EmailNotificationType.on_choices(),
+        help_text="Tool wait list notification",
     )
     email_send_usage_reminders = models.PositiveIntegerField(
         default=EmailNotificationType.BOTH_EMAILS, choices=EmailNotificationType.Choices, help_text="Usage reminders"
@@ -737,6 +746,7 @@ class User(BaseModel, PermissionsMixin):
         help_text="The badge number associated with this user. This number must correctly correspond to a user in order for the tablet-login system (in the lobby) to work properly.",
     )
     access_expiration = models.DateField(
+        verbose_name="active access expiration",
         blank=True,
         null=True,
         help_text="The user will lose all access rights after this date. Typically this is used to ensure that safety training has been completed by the user every year.",
@@ -745,7 +755,7 @@ class User(BaseModel, PermissionsMixin):
 
     # Permissions
     is_active = models.BooleanField(
-        "active",
+        "active account",
         default=True,
         help_text="Designates whether this user can log in. Unselect this instead of deleting accounts.",
     )
@@ -838,6 +848,9 @@ class User(BaseModel, PermissionsMixin):
                     "is_service_personnel": "A user cannot be both staff and service personnel. Please choose one or the other.",
                 }
             )
+
+    def has_access_expired(self) -> bool:
+        return self.access_expiration and self.access_expiration < datetime.date.today()
 
     def check_password(self, raw_password):
         return False
@@ -1093,6 +1106,12 @@ class UserDocuments(BaseDocumentModel):
 
 
 class Tool(SerializationByNameModel):
+    class OperationMode(object):
+        REGULAR = 0
+        WAIT_LIST = 1
+        HYBRID = 2
+        Choices = ((REGULAR, "Regular"), (WAIT_LIST, "Wait List"), (HYBRID, "Hybrid"))
+
     name = models.CharField(max_length=100, unique=True)
     parent_tool = models.ForeignKey(
         "Tool",
@@ -1290,6 +1309,11 @@ class Tool(SerializationByNameModel):
         db_column="policy_off_weekend",
         default=False,
         help_text="Whether or not policy rules should be enforced on weekends",
+    )
+    _operation_mode = models.IntegerField(
+        choices=OperationMode.Choices,
+        default=OperationMode.REGULAR,
+        help_text="The operation mode of the tool, which determines if reservations and wait list are allowed.",
     )
 
     class Meta:
@@ -1626,6 +1650,27 @@ class Tool(SerializationByNameModel):
         self.raise_setter_error_if_child_tool("tool_calendar_color")
         self._tool_calendar_color = value
 
+    @property
+    def operation_mode(self):
+        return self.parent_tool.operation_mode if self.is_child_tool() else self._operation_mode
+
+    @operation_mode.setter
+    def operation_mode(self, value):
+        self.raise_setter_error_if_child_tool("operation_mode")
+        self._operation_mode = value
+
+    def allow_wait_list(self):
+        return self.operation_mode in [self.OperationMode.WAIT_LIST, self.OperationMode.HYBRID]
+
+    def allow_reservation(self):
+        return self.operation_mode in [self.OperationMode.REGULAR, self.OperationMode.HYBRID]
+
+    def current_wait_list(self):
+        return ToolWaitList.objects.filter(tool=self, expired=False, deleted=False).order_by("date_entered")
+
+    def top_wait_list_entry(self):
+        return self.current_wait_list().first()
+
     def name_or_child_in_use_name(self, parent_ids=None) -> str:
         """This method returns the tool name unless one of its children is in use."""
         """ When used in loops, provide the parent_ids list to avoid unnecessary db calls """
@@ -1923,6 +1968,22 @@ class Tool(SerializationByNameModel):
             fresh_tool = Tool(id=self.id, parent_tool=self.parent_tool, name=self.name, visible=False)
             self.__dict__.update(fresh_tool.__dict__)
         super().save(force_insert, force_update, using, update_fields)
+
+
+class ToolWaitList(BaseModel):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        help_text="The user in the wait list.",
+    )
+    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, help_text="The target tool for the wait list entry.")
+    date_entered = models.DateTimeField(auto_now_add=True, help_text="The date/time the user entered the wait list.")
+    date_exited = models.DateTimeField(null=True, blank=True, help_text="The date/time the user exited the wait list.")
+    last_turn_available_at = models.DateTimeField(
+        null=True, blank=True, help_text="The last date/time the user's turn became available."
+    )
+    expired = models.BooleanField(default=False, help_text="Whether the user's spot in the wait list has expired.")
+    deleted = models.BooleanField(default=False, help_text="Whether the wait list entry has been deleted.")
 
 
 class ToolDocuments(BaseDocumentModel):
@@ -2681,9 +2742,7 @@ class Reservation(BaseModel, CalendarDisplayMixin, BillableItemMixin):
         return loads(self.question_data) if self.question_data else None
 
     def copy(self, new_start: datetime = None, new_end: datetime = None):
-        new_reservation = deepcopy(self)
-        new_reservation.id = None
-        new_reservation.pk = None
+        new_reservation = new_model_copy(self)
         if new_start:
             new_reservation.start = new_start
         if new_end:
@@ -2695,9 +2754,9 @@ class Reservation(BaseModel, CalendarDisplayMixin, BillableItemMixin):
         if self.configurationoption_set.exists():
             deferred_related_models = []
             for config_option in self.configurationoption_set.all():
-                config_option.pk = None
-                config_option.reservation = new_reservation
-                deferred_related_models.append(config_option)
+                new_config_option = new_model_copy(config_option)
+                new_config_option.reservation = new_reservation
+                deferred_related_models.append(new_config_option)
             new_reservation._deferred_related_models = deferred_related_models
         return new_reservation
 
@@ -2889,7 +2948,7 @@ class ConsumableWithdraw(BaseModel, BillableItemMixin):
                 errors["customer"] = (
                     "A consumable withdraw was requested for an inactive user. Only active users may withdraw consumables."
                 )
-            if self.customer.access_expiration and self.customer.access_expiration < datetime.date.today():
+            if self.customer.has_access_expired():
                 errors["customer"] = f"This user's access expired on {format_datetime(self.customer.access_expiration)}"
         if self.project_id:
             if not self.project.active:
@@ -2991,7 +3050,7 @@ class RecurringConsumableCharge(BaseModel, RecurrenceMixin):
         if self.customer and not skip_customer:
             if not self.customer.is_active:
                 return "This user is inactive"
-            if self.customer.access_expiration and self.customer.access_expiration < datetime.date.today():
+            if self.customer.has_access_expired():
                 return (
                     f"The facility access for this user expired on {format_datetime(self.customer.access_expiration)}"
                 )
@@ -3114,6 +3173,7 @@ class Interlock(BaseModel):
             (LOCKED, "Locked"),
         )
 
+    name = models.CharField(null=True, blank=True, max_length=CHAR_FIELD_MAXIMUM_LENGTH)
     card = models.ForeignKey(InterlockCard, on_delete=models.CASCADE)
     channel = models.PositiveIntegerField(blank=True, null=True, verbose_name="Channel/Relay/Coil")
     unit_id = models.PositiveIntegerField(null=True, blank=True, verbose_name="Multiplier/Unit id/Bank")
@@ -3135,7 +3195,18 @@ class Interlock(BaseModel):
         ordering = ["card__server", "card__number", "channel"]
 
     def __str__(self):
-        return str(self.card) + (", channel " + str(self.channel) if self.channel else "")
+        from NEMO import interlocks
+
+        category = self.card.category if self.card else None
+        channel_name = interlocks.get(category, raise_exception=False).channel_name
+        display_name = ""
+        if self.name:
+            display_name += f"{self.name}"
+        if self.channel:
+            if self.name:
+                display_name += ", "
+            display_name += f"{channel_name} " + str(self.channel)
+        return str(self.card) + (f", {display_name}" if display_name else "")
 
 
 class InterlockCardCategory(BaseModel):
@@ -3602,9 +3673,15 @@ class SafetyItem(BaseModel):
     category = models.ForeignKey(
         SafetyCategory, null=True, blank=True, help_text="The category for this safety item.", on_delete=models.SET_NULL
     )
+    display_order = models.IntegerField(
+        help_text="The order in which the items will be displayed within the same category. Lower values are displayed first."
+    )
 
     def __str__(self):
         return self.name
+
+    class Meta:
+        ordering = ["display_order", "name"]
 
 
 class SafetyItemDocuments(BaseDocumentModel):
@@ -3658,6 +3735,10 @@ class Alert(BaseModel):
     deleted = models.BooleanField(
         default=False, help_text="Indicates the alert has been deleted and won't be shown anymore"
     )
+
+    def clean(self):
+        if self.dismissible and not self.user:
+            raise ValidationError({"dismissible": "Only a user-specific alert can be dismissed by the user"})
 
     class Meta:
         ordering = ["-debut_time"]
@@ -3821,13 +3902,22 @@ class ScheduledOutage(BaseModel):
     tool = models.ForeignKey(Tool, blank=True, null=True, on_delete=models.CASCADE)
     area = TreeForeignKey(Area, blank=True, null=True, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, blank=True, null=True, on_delete=models.CASCADE)
+    reminder_days = models.CharField(
+        null=True,
+        blank=True,
+        max_length=200,
+        validators=[validate_comma_separated_integer_list],
+        help_text="The number of days to send a reminder before a scheduled outage. A comma-separated list can be used for multiple reminders.",
+    )
+    reminder_emails: List[str] = fields.MultiEmailField(
+        null=True,
+        blank=True,
+        help_text="The reminder email(s) will be sent to this address. A comma-separated list can be used.",
+    )
 
     @property
-    def outage_item(self) -> Union[Tool, Area]:
-        if self.tool:
-            return self.tool
-        elif self.area:
-            return self.area
+    def outage_item(self) -> Union[Tool, Area, Resource]:
+        return self.tool or self.area or self.resource
 
     @outage_item.setter
     def outage_item(self, item):
@@ -3835,6 +3925,8 @@ class ScheduledOutage(BaseModel):
             self.tool = item
         elif isinstance(item, Area):
             self.area = item
+        elif isinstance(item, Resource):
+            self.resource = item
         else:
             raise AttributeError(f"This item [{item}] isn't allowed on outages.")
 
@@ -3857,6 +3949,11 @@ class ScheduledOutage(BaseModel):
 
     def has_not_started(self):
         return False if self.start <= timezone.now() else True
+
+    def get_reminder_days(self) -> List[int]:
+        if not self.reminder_emails:
+            return []
+        return [int(days) for days in self.reminder_days.split(",")]
 
     def clean(self):
         if self.start and self.end and self.start >= self.end:
@@ -4054,6 +4151,10 @@ class AdjustmentRequest(BaseModel):
     reviewer = models.ForeignKey(
         "User", null=True, blank=True, related_name="adjustment_requests_reviewed", on_delete=models.CASCADE
     )
+    applied = models.BooleanField(default=False, help_text="Indicates the adjustment has been applied")
+    applied_by = models.ForeignKey(
+        "User", null=True, blank=True, related_name="adjustment_requests_applied", on_delete=models.CASCADE
+    )
     deleted = models.BooleanField(
         default=False, help_text="Indicates the request has been deleted and won't be shown anymore."
     )
@@ -4120,6 +4221,19 @@ class AdjustmentRequest(BaseModel):
             area_reviewers = area.adjustment_request_reviewers.filter(is_active=True)
             return area_reviewers or facility_managers
         return facility_managers
+
+    def apply_adjustment(self, user):
+        if self.status == RequestStatus.APPROVED and self.editable_charge():
+            new_start = self.get_new_start()
+            new_end = self.get_new_end()
+            if new_start:
+                self.item.start = new_start
+            if new_end:
+                self.item.end = new_end
+            self.item.save()
+            self.applied = True
+            self.applied_by = user
+            self.save()
 
     def delete(self, using=None, keep_parents=False):
         adjustment_id = self.id
@@ -4368,9 +4482,15 @@ class StaffKnowledgeBaseItem(BaseModel):
         help_text="The category for this item.",
         on_delete=models.SET_NULL,
     )
+    display_order = models.IntegerField(
+        help_text="The order in which the items will be displayed within the same category. Lower values are displayed first."
+    )
 
     def __str__(self):
         return self.name
+
+    class Meta:
+        ordering = ["display_order", "name"]
 
 
 class StaffKnowledgeBaseItemDocuments(BaseDocumentModel):
@@ -4401,9 +4521,15 @@ class UserKnowledgeBaseItem(BaseModel):
         help_text="The category for this item.",
         on_delete=models.SET_NULL,
     )
+    display_order = models.IntegerField(
+        help_text="The order in which the items will be displayed within the same category. Lower values are displayed first."
+    )
 
     def __str__(self):
         return self.name
+
+    class Meta:
+        ordering = ["display_order", "name"]
 
 
 class UserKnowledgeBaseItemDocuments(BaseDocumentModel):

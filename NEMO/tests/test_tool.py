@@ -1,11 +1,24 @@
+from datetime import timedelta
 from typing import Optional
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from NEMO.admin import InterlockCardAdminForm, ToolAdminForm
-from NEMO.models import Account, Area, Door, Interlock, InterlockCardCategory, PhysicalAccessLevel, Project, Tool, User
-from NEMO.tests.test_utilities import login_as, login_as_access_user, login_as_user
+from NEMO.models import (
+    Account,
+    Area,
+    AreaAccessRecord,
+    Door,
+    Interlock,
+    InterlockCardCategory,
+    PhysicalAccessLevel,
+    Project,
+    Tool,
+    User,
+)
+from NEMO.tests.test_utilities import create_user_and_project, login_as
 
 tool: Optional[Tool] = None
 alternate_tool: Optional[Tool] = None
@@ -54,13 +67,19 @@ class ToolTestCase(TestCase):
             "_policy_off_end_time": "4:00 PM",
             "_policy_off_weekend": True,
             "visible": True,
+            "_operation_mode": Tool.OperationMode.REGULAR,
         }
         area_door = Door.objects.create(name="cleanroom door", interlock=cleanroom_interlock)
         area_door.areas.set([cleanroom])
         tool_form = ToolAdminForm(tool_data)
         self.assertTrue(tool_form.is_valid(), tool_form.errors.as_text())
         tool = tool_form.save()
-        alternate_tool_data = {"name": "alt_test_tool", "parent_tool": tool.id, "visible": True}
+        alternate_tool_data = {
+            "name": "alt_test_tool",
+            "parent_tool": tool.id,
+            "visible": True,
+            "_operation_mode": Tool.OperationMode.REGULAR,
+        }
         alternate_tool_form = ToolAdminForm(alternate_tool_data)
         self.assertTrue(alternate_tool_form.is_valid(), alternate_tool_form.errors.as_text())
         alternate_tool = alternate_tool_form.save()
@@ -105,15 +124,64 @@ class ToolTestCase(TestCase):
 
         self.assertEqual(tool.get_absolute_url(), alternate_tool.get_absolute_url())
 
+    def test_enable_tool_policy(self):
+        tool.operational = True
+        tool.save()
+        user = User.objects.create(
+            username="noproj",
+            first_name="scott",
+            last_name="NoProj",
+            access_expiration=timezone.now() - timedelta(days=10),
+        )
+        project = Project.objects.create(name="test_prj", account=Account.objects.create(name="test_acct"))
+
+        login_as(self.client, user)
+
+        response = self.client.post(reverse("enable_tool", args=[tool.id, user.id, project.id, "false"]), follow=True)
+        self.assertContains(response, "You are not qualified to use this tool.", status_code=400)
+
+        user.qualifications.add(tool)
+        login_as(self.client, user)
+        response = self.client.post(reverse("enable_tool", args=[tool.id, user.id, project.id, "false"]), follow=True)
+        self.assertContains(
+            response,
+            f"You must be logged in to the {tool.requires_area_access.name} to operate this tool.",
+            status_code=400,
+        )
+
+        AreaAccessRecord.objects.create(
+            area=tool.requires_area_access, customer=user, project=project, start=timezone.now()
+        )
+        login_as(self.client, user)
+        response = self.client.post(reverse("enable_tool", args=[tool.id, user.id, project.id, "false"]), follow=True)
+        self.assertContains(response, f"Permission to bill project {project.name} was denied.", status_code=400)
+
+        user.projects.add(project)
+        login_as(self.client, user)
+        response = self.client.post(reverse("enable_tool", args=[tool.id, user.id, project.id, "false"]), follow=True)
+        self.assertContains(
+            response,
+            "You are blocked from using all tools in the Facility. Please complete the Facility rules tutorial in order to use tools.",
+            status_code=400,
+        )
+
+        user.training_required = False
+        user.save()
+        login_as(self.client, user)
+        response = self.client.post(reverse("enable_tool", args=[tool.id, user.id, project.id, "false"]), follow=True)
+        self.assertContains(response, "Your NEMO access has expired.", status_code=400)
+
+        user.access_expiration = None
+        user.save()
+        login_as(self.client, user)
+        response = self.client.post(reverse("enable_tool", args=[tool.id, user.id, project.id, "false"]), follow=True)
+        self.assertEqual(response.status_code, 200)
+
     def test_tool_in_use(self):
-        user = login_as_user(self.client)
+        user, project = create_user_and_project(add_area_access_permissions=True)
         # make the tool operational
         tool.operational = True
         tool.save()
-        project = Project.objects.create(
-            name="test project", application_identifier="sadasd", account=Account.objects.create(name="test account")
-        )
-        user.projects.add(project)
         # user needs to be qualified to use the tool
         user.qualifications.add(tool)
         user.physical_access_levels.add(PhysicalAccessLevel.objects.get(name="cleanroom access"))
@@ -121,7 +189,7 @@ class ToolTestCase(TestCase):
         user.training_required = False
         user.save()
         # log into the area
-        login_as_access_user(self.client)
+        login_as(self.client, user)
         response = self.client.post(
             reverse("login_to_area", kwargs={"door_id": area_door.id}), {"badge_number": user.badge_number}, follow=True
         )

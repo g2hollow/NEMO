@@ -29,6 +29,7 @@ from NEMO.models import (
     RecurringConsumableCharge,
     TrainingSession,
     UserPreferences,
+    UserType,
 )
 from NEMO.utilities import RecurrenceFrequency, date_input_format, datetime_input_format, quiet_int
 
@@ -225,10 +226,23 @@ class UserCustomization(CustomizationBase):
         "user_list_active_only": "",
         "user_access_expiration_reminder_days": "",
         "user_access_expiration_reminder_cc": "",
+        "user_access_expiration_buffer_days": "",
+        "user_access_expiration_no_type": "",
+        "user_access_expiration_types": "-1",
         "user_allow_document_upload": "",
     }
 
+    def context(self) -> Dict:
+        context_dict = super().context()
+        context_dict["user_types"] = UserType.objects.all()
+        context_dict["user_access_expiration_types_list"] = self.get_list_int("user_access_expiration_types")
+        return context_dict
+
     def validate(self, name, value):
+        if name == "user_access_expiration_types" and value:
+            validate_comma_separated_integer_list(value)
+        if name == "user_access_expiration_buffer_days" and value:
+            validate_integer(value)
         if name == "user_access_expiration_reminder_days" and value:
             # Check that we have an integer or a list of integers
             validate_comma_separated_integer_list(value)
@@ -236,6 +250,17 @@ class UserCustomization(CustomizationBase):
             recipients = tuple([e for e in value.split(",") if e])
             for email in recipients:
                 validate_email(email)
+
+    def save(self, request, element=None) -> Dict[str, Dict[str, str]]:
+        errors = super().save(request, element)
+
+        user_types = ",".join(request.POST.getlist("user_access_expiration_types_list", []))
+        try:
+            self.validate("user_access_expiration_types", user_types)
+            type(self).set("user_access_expiration_types", user_types)
+        except (ValidationError, InvalidCustomizationException) as e:
+            errors["user_access_expiration_types"] = {"error": str(e.message or e.msg), "value": user_types}
+        return errors
 
 
 @customization(key="emails", title="Email addresses")
@@ -256,10 +281,13 @@ class CalendarCustomization(CustomizationBase):
     variables = {
         "calendar_view": "agendaWeek",
         "calendar_first_day_of_week": "1",
-        "calendar_time_format": "ha",
+        "calendar_axis_time_format": "ha",
         "calendar_day_column_format": "dddd MM/DD/YYYY",
+        "calendar_day_time_format": "h:mm",
         "calendar_week_column_format": "ddd M/DD",
+        "calendar_week_time_format": "h:mm",
         "calendar_month_column_format": "ddd",
+        "calendar_month_time_format": "h(:mm)t",
         "calendar_start_of_the_day": "07:00:00",
         "calendar_now_indicator": "",
         "calendar_display_not_qualified_areas": "",
@@ -342,6 +370,7 @@ class UserRequestsCustomization(CustomizationBase):
         "adjustment_requests_time_limit_interval": "2",
         "adjustment_requests_time_limit_frequency": RecurrenceFrequency.WEEKLY.index,
         "adjustment_requests_edit_charge_button": "",
+        "adjustment_requests_apply_button": "",
         "weekend_access_notification_emails": "",
         "weekend_access_notification_cutoff_hour": "",
         "weekend_access_notification_cutoff_day": "",
@@ -455,6 +484,8 @@ class ToolCustomization(CustomizationBase):
         "tool_problem_send_to_all_qualified_users": "",
         "tool_configuration_near_future_days": "1",
         "tool_reservation_policy_superusers_bypass": "",
+        "tool_wait_list_spot_expiration": "15",
+        "tool_wait_list_reservation_buffer": "15",
     }
 
     def validate(self, name, value):
@@ -551,6 +582,7 @@ class TemplatesCustomization(CustomizationBase):
         ("reservation_reminder_email", ".html"),
         ("reservation_warning_email", ".html"),
         ("safety_issue_email", ".html"),
+        ("scheduled_outage_reminder_email", ".html"),
         ("staff_charge_reminder_email", ".html"),
         ("task_status_notification", ".html"),
         ("tool_qualification_expiration_email", ".html"),
@@ -561,6 +593,7 @@ class TemplatesCustomization(CustomizationBase):
         ("reservation_cancelled_user_email", ".html"),
         ("weekend_access_email", ".html"),
         ("recurring_charges_reminder_email", ".html"),
+        ("wait_list_notification_email", ".html"),
     ]
 
 
