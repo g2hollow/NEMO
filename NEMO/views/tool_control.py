@@ -108,7 +108,9 @@ def tool_status(request, tool_id):
         or (user_is_qualified and broadcast_upcoming_reservation == "qualified")
         or broadcast_upcoming_reservation == "all",
         "tool_control_show_task_details": ToolCustomization.get_bool("tool_control_show_task_details"),
-        "tool_control_allow_qualified_user_logoff": ToolCustomization.get_bool("tool_control_allow_qualified_user_logoff"),
+        "tool_control_allow_qualified_user_logoff": ToolCustomization.get_bool(
+            "tool_control_allow_qualified_user_logoff"
+        ),
         "has_usage_questions": True if tool.pre_usage_questions or tool.post_usage_questions else False,
         "user_can_see_documents": user.is_any_part_of_staff
         or not ToolCustomization.get_bool("tool_control_show_documents_only_qualified_users")

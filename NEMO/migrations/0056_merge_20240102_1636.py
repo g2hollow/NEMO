@@ -6,9 +6,8 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('NEMO', '0055_auto_20231031_1034'),
-        ('NEMO', '0055_reservationconfigurationoption'),
+        ("NEMO", "0055_auto_20231031_1034"),
+        ("NEMO", "0055_reservationconfigurationoption"),
     ]
 
-    operations = [
-    ]
+    operations = []

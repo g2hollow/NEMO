@@ -8,5 +8,4 @@ class SensorDataSerializer(FlexFieldsSerializerMixin, ModelSerializer):
     class Meta:
         model = SensorData
         fields = "__all__"
-        expandable_fields = {
-        }
+        expandable_fields = {}

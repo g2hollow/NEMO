@@ -7,17 +7,19 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('NEMO', '0054_documents_update_max_length'),
+        ("NEMO", "0054_documents_update_max_length"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='account',
-            name='type',
+            model_name="account",
+            name="type",
         ),
         migrations.AlterField(
-            model_name='project',
-            name='application_identifier',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='NEMO.accounttype'),
+            model_name="project",
+            name="application_identifier",
+            field=models.ForeignKey(
+                blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to="NEMO.accounttype"
+            ),
         ),
     ]

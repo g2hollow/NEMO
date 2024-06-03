@@ -7,18 +7,20 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('NEMO', '0056_merge_20240102_1636'),
+        ("NEMO", "0056_merge_20240102_1636"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='account',
-            name='type',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='NEMO.accounttype'),
+            model_name="account",
+            name="type",
+            field=models.ForeignKey(
+                blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to="NEMO.accounttype"
+            ),
         ),
         migrations.AlterField(
-            model_name='project',
-            name='application_identifier',
+            model_name="project",
+            name="application_identifier",
             field=models.CharField(max_length=100),
         ),
     ]

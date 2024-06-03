@@ -18,6 +18,7 @@
     "start": "{{ x.start|date:"c" }}",
     "end": "{{ x.get_visual_end|date:"c" }}",
     "details_url": "{% url 'reservation_details' x.id %}"
-    }{% if not forloop.last %},{% endif %}
+    }
+    {% if not forloop.last %},{% endif %}
 {% endfor %}
 ]
