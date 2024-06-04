@@ -1,28 +1,25 @@
 {# djlint:off #}
 [
-{% for x in events %}
-    {
-    {% if personal_schedule and x.tool %}
-        "title": "{{ x.reservation_item.name|escapejs }} ({{ x.user.username|escapejs }})\n{{ x.title|escapejs }}",
-        "color": "#33ad33",
-    {% elif personal_schedule and x.area %}
-        "title": "{{ x.reservation_item.name|escapejs }} ({{ x.user.username|escapejs }})\n{{ x.title|escapejs }}",
-        "color": "#84CD84",
-    {% elif all_tools or all_areastools and x.tool %}
-        "title": "{{ x.reservation_item.name|escapejs }} ({{ x.user.username|escapejs }})\n{{ x.title|escapejs }}",
-        "color": "{{ x.reservation_item.tool_calendar_color|default:'#33ad33'|escapejs }}",
-    {% elif all_areas or all_areastools and x.area %}
-        "title": "{{ x.reservation_item.name|escapejs }} ({{ x.user.username|escapejs }})\n{{ x.title|escapejs }}",
-        "color": "{{ x.reservation_item.area_calendar_color|default:'#84CD84'|escapejs }}",
-    {% else %}
-        {% if display_name %}
-            "title": "{{ x.reservation_item.name|escapejs }} ({{ x.user.username|escapejs }})\n{{ x.title|escapejs }}",
-        {% else %}
-            "title": "{{ x.title|default:x.user|escapejs }}
-            {% if display_configuration %}\n{{ x.get_configuration_options_display|escapejs }}{% endif %}
-            ",
-            {% if display_configuration and x.get_configuration_options_colors %}
-                "colors": ["{{ x.get_configuration_options_colors|join:'","' }}"],
+	{% for x in events %}
+	{
+		{% if personal_schedule and x.tool %}
+			"title": "{{x.reservation_item.name|escapejs}} ({{x.user.username|escapejs}})\n{{ x.title|escapejs }}",
+			"color": "#33ad33",
+		{% elif personal_schedule and x.area %}
+			"title": "{{x.reservation_item.name|escapejs}} ({{x.user.username|escapejs}})\n{{ x.title|escapejs }}",
+			"color": "#84CD84",
+		{% elif all_tools or all_areastools and x.tool %}
+			"title": "{{x.reservation_item.name|escapejs}} ({{x.user.username|escapejs}})\n{{ x.title|escapejs }}",
+			"color": "{{ x.reservation_item.tool_calendar_color|default:'#33ad33'|escapejs }}",
+		{% elif all_areas or all_areastools and x.area %}
+			"title": "{{x.reservation_item.name|escapejs}} ({{x.user.username|escapejs}})\n{{ x.title|escapejs }}",
+			"color": "{{ x.reservation_item.area_calendar_color|default:'#84CD84'|escapejs }}",
+		{% else %}
+            {% if display_name %}
+			    "title": "{{x.reservation_item.name|escapejs}} ({{x.user.username|escapejs}})\n{{ x.title|escapejs }}",
+            {% else %}
+                "title": "{{ x.title|default:x.user|escapejs }}{% if display_configuration %}\n{{ x.get_configuration_options_display|escapejs }}{% endif %}",
+                {% if display_configuration and x.get_configuration_options_colors %}"colors": ["{{ x.get_configuration_options_colors|join:'","' }}"],{% endif %}
             {% endif %}
             "color": "{% if x.tool %}{% if x.reservation_item.tool_calendar_color|lower == "#33ad33" %}#88B7CD{% else %}{{ x.reservation_item.tool_calendar_color|default:"#88B7CD"|escapejs }}{% endif %}{% else %}{{ x.reservation_item.area_calendar_color|default:"#88B7CD"|escapejs }}{% endif %}",
 			{% if x.user.id == user.id %}"own-reservation": true,{% endif %}
