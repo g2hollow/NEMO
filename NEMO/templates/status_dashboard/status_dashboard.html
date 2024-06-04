@@ -163,12 +163,13 @@
 	function filter(show)
 	{
 		$("#filter").html("Showing " + show + " <span class='caret'></span>");
+		set_style('.problem_description { display: none;}');
 		if(show === "all tools")
 			set_style('.in_use { display: table-row; } .idle { display: table-row; }');
 		else if(show === "tools in use")
 			set_style('.in_use { display: table-row; } .idle { display: none; }');
 		else if(show === "problematic tools")
-			set_style('.problematic { display: table-row } .healthy { display: none; }');
+			set_style('.problematic { display: table-row } .healthy { display: none; } .problem_description { display: table-cell; }');
 		else if(show === "idle tools")
 			set_style('.idle { display: table-row; } .in_use { display: none; }');
 	}

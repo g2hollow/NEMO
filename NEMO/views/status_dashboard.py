@@ -468,6 +468,7 @@ def merge(tools, tasks, unavailable_resources, usage_events, scheduled_outages, 
             "in_use_since": "",
             "delayed_logoff_in_progress": tool.tool_or_parent_id() in tools_with_delayed_logoff_in_effect,
             "problematic": False,
+            "problem_description": "",
             "operational": tool.operational,
             "required_resource_is_unavailable": False,
             "nonrequired_resource_is_unavailable": False,
@@ -482,6 +483,7 @@ def merge(tools, tasks, unavailable_resources, usage_events, scheduled_outages, 
             result[tool.tool_or_parent_id()]["get_tool_info_html"] = tool.get_tool_info_html()
     for task in tasks:
         result[task.tool.id]["problematic"] = True
+        result[task.tool.id]["problem_description"] += task.problem_description+'<br/><br/>'
     for event in usage_events:
         result[event.tool.tool_or_parent_id()]["operator"] = str(event.operator)
         result[event.tool.tool_or_parent_id()]["user"] = str(event.operator)
