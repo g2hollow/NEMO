@@ -15,10 +15,12 @@ from NEMO.apps.sensors.serializers import SensorDataSerializer
 from NEMO.models import (
     Account,
     AccountType,
+    AdjustmentRequest,
     Alert,
     AlertCategory,
     Area,
     AreaAccessRecord,
+    BuddyRequest,
     Configuration,
     ConfigurationOption,
     Consumable,
@@ -27,15 +29,19 @@ from NEMO.models import (
     Interlock,
     InterlockCard,
     InterlockCardCategory,
+    PhysicalAccessLevel,
     Project,
     ProjectDiscipline,
     Qualification,
+    RecurringConsumableCharge,
     Reservation,
     Resource,
     ScheduledOutage,
     StaffCharge,
     Task,
+    TemporaryPhysicalAccessRequest,
     Tool,
+    ToolCredentials,
     TrainingSession,
     UsageEvent,
     User,
@@ -44,11 +50,13 @@ from NEMO.rest_pagination import NEMOPageNumberPagination
 from NEMO.serializers import (
     AccountSerializer,
     AccountTypeSerializer,
+    AdjustmentRequestSerializer,
     AlertCategorySerializer,
     AlertSerializer,
     AreaAccessRecordSerializer,
     AreaSerializer,
     BillableItemSerializer,
+    BuddyRequestSerializer,
     ConfigurationOptionSerializer,
     ConfigurationSerializer,
     ConsumableCategorySerializer,
@@ -60,14 +68,18 @@ from NEMO.serializers import (
     InterlockCardSerializer,
     InterlockSerializer,
     PermissionSerializer,
+    PhysicalAccessLevelSerializer,
     ProjectDisciplineSerializer,
     ProjectSerializer,
     QualificationSerializer,
+    RecurringConsumableChargeSerializer,
     ReservationSerializer,
     ResourceSerializer,
     ScheduledOutageSerializer,
     StaffChargeSerializer,
     TaskSerializer,
+    TemporaryPhysicalAccessRequestSerializer,
+    ToolCredentialsSerializer,
     ToolSerializer,
     ToolStatusSerializer,
     TrainingSessionSerializer,
@@ -75,11 +87,20 @@ from NEMO.serializers import (
     UserSerializer,
 )
 from NEMO.typing import QuerySetType
-from NEMO.utilities import export_format_datetime
+from NEMO.utilities import export_format_datetime, remove_duplicates
 from NEMO.views.api_billing import (
     BillingFilterForm,
     get_billing_charges,
 )
+
+date_filters = ["exact", "in", "month", "year", "day", "gte", "gt", "lte", "lt", "isnull"]
+time_filters = ["exact", "in", "hour", "minute", "second", "gte", "gt", "lte", "lt", "isnull"]
+datetime_filters = remove_duplicates(date_filters + time_filters + ["week"])
+string_filters = ["exact", "iexact", "in", "contains", "icontains", "isempty"]
+number_filters = ["exact", "in", "gte", "gt", "lte", "lt", "isnull"]
+key_filters = ["exact", "in", "isnull"]
+manykey_filters = ["exact", "isnull"]
+boolean_filters = ["exact"]
 
 
 class SingleInstanceHTMLFormBrowsableAPIRenderer(BrowsableAPIRenderer):
@@ -143,8 +164,8 @@ class AlertCategoryViewSet(viewsets.ModelViewSet):
     queryset = AlertCategory.objects.all()
     serializer_class = AlertCategorySerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "name": ["exact", "iexact", "contains", "icontains"],
+        "id": key_filters,
+        "name": string_filters,
     }
 
 
@@ -153,18 +174,18 @@ class AlertViewSet(ModelViewSet):
     queryset = Alert.objects.all()
     serializer_class = AlertSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "title": ["exact", "iexact", "contains", "icontains"],
-        "category": ["exact", "iexact"],
-        "contents": ["contains", "icontains"],
-        "creation_time": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "creator": ["exact", "in"],
-        "user": ["exact", "in"],
-        "debut_time": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "expiration_time": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "dismissible": ["exact"],
-        "expired": ["exact"],
-        "deleted": ["exact"],
+        "id": key_filters,
+        "title": string_filters,
+        "category": string_filters,
+        "contents": string_filters,
+        "creation_time": datetime_filters,
+        "creator": key_filters,
+        "user": key_filters,
+        "debut_time": datetime_filters,
+        "expiration_time": datetime_filters,
+        "dismissible": boolean_filters,
+        "expired": boolean_filters,
+        "deleted": boolean_filters,
     }
 
 
@@ -173,25 +194,25 @@ class UserViewSet(ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "type": ["exact", "in"],
-        "domain": ["exact", "in", "isempty"],
-        "username": ["exact", "iexact", "in"],
-        "first_name": ["exact", "iexact", "icontains"],
-        "last_name": ["exact", "iexact", "icontains"],
-        "email": ["exact", "iexact", "icontains"],
-        "badge_number": ["exact", "iexact", "isempty"],
-        "is_active": ["exact"],
-        "is_staff": ["exact"],
-        "is_facility_manager": ["exact"],
-        "is_superuser": ["exact"],
-        "is_service_personnel": ["exact"],
-        "is_technician": ["exact"],
-        "training_required": ["exact"],
-        "date_joined": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "last_login": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "access_expiration": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "physical_access_levels": ["exact"],
+        "id": key_filters,
+        "type": key_filters,
+        "domain": string_filters,
+        "username": string_filters,
+        "first_name": string_filters,
+        "last_name": string_filters,
+        "email": string_filters,
+        "badge_number": string_filters,
+        "is_active": boolean_filters,
+        "is_staff": boolean_filters,
+        "is_facility_manager": boolean_filters,
+        "is_superuser": boolean_filters,
+        "is_service_personnel": boolean_filters,
+        "is_technician": boolean_filters,
+        "training_required": boolean_filters,
+        "date_joined": datetime_filters,
+        "last_login": datetime_filters,
+        "access_expiration": date_filters,
+        "physical_access_levels": manykey_filters,
     }
 
 
@@ -199,7 +220,7 @@ class ProjectDisciplineViewSet(ModelViewSet):
     filename = "project_disciplines"
     queryset = ProjectDiscipline.objects.all()
     serializer_class = ProjectDisciplineSerializer
-    filterset_fields = {"id": ["exact", "in"], "name": ["exact", "iexact"], "display_order": ["exact"]}
+    filterset_fields = {"id": key_filters, "name": string_filters, "display_order": number_filters}
 
 
 class ProjectViewSet(ModelViewSet):
@@ -207,12 +228,12 @@ class ProjectViewSet(ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "name": ["exact", "iexact"],
-        "application_identifier": ["exact", "iexact"],
-        "active": ["exact"],
-        "account_id": ["exact", "in"],
-        "account": ["exact", "in"],
+        "id": key_filters,
+        "name": string_filters,
+        "application_identifier": string_filters,
+        "active": boolean_filters,
+        "account_id": key_filters,
+        "account": key_filters,
     }
 
 
@@ -220,14 +241,14 @@ class AccountTypeViewSet(ModelViewSet):
     filename = "account_types"
     queryset = AccountType.objects.all()
     serializer_class = AccountTypeSerializer
-    filterset_fields = {"id": ["exact", "in"], "name": ["exact", "iexact"], "display_order": ["exact"]}
+    filterset_fields = {"id": key_filters, "name": string_filters, "display_order": number_filters}
 
 
 class AccountViewSet(ModelViewSet):
     filename = "accounts"
     queryset = Account.objects.all()
     serializer_class = AccountSerializer
-    filterset_fields = {"id": ["exact", "in"], "name": ["exact", "iexact"], "active": ["exact"]}
+    filterset_fields = {"id": key_filters, "name": string_filters, "active": boolean_filters}
 
 
 class ToolViewSet(ModelViewSet):
@@ -235,15 +256,15 @@ class ToolViewSet(ModelViewSet):
     queryset = Tool.objects.all()
     serializer_class = ToolSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "name": ["exact", "iexact"],
-        "visible": ["exact"],
-        "_category": ["exact", "iexact"],
-        "_operational": ["exact"],
-        "_location": ["exact", "iexact"],
-        "_requires_area_access": ["exact", "isnull"],
-        "_post_usage_questions": ["isempty"],
-        "_pre_usage_questions": ["isempty"],
+        "id": key_filters,
+        "name": string_filters,
+        "visible": boolean_filters,
+        "_category": string_filters,
+        "_operational": boolean_filters,
+        "_location": string_filters,
+        "_requires_area_access": key_filters,
+        "_post_usage_questions": string_filters,
+        "_pre_usage_questions": string_filters,
     }
 
 
@@ -252,10 +273,10 @@ class QualificationViewSet(ModelViewSet):
     queryset = Qualification.objects.all()
     serializer_class = QualificationSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "user": ["exact", "in"],
-        "tool": ["exact", "in"],
-        "qualified_on": ["exact", "month", "year", "day", "gte", "gt", "lte", "lt"],
+        "id": key_filters,
+        "user": key_filters,
+        "tool": key_filters,
+        "qualified_on": date_filters,
     }
 
 
@@ -264,15 +285,15 @@ class AreaViewSet(ModelViewSet):
     queryset = Area.objects.all()
     serializer_class = AreaSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "name": ["exact", "iexact"],
-        "parent_area": ["exact", "in"],
-        "category": ["exact", "iexact"],
-        "requires_reservation": ["exact"],
-        "buddy_system_allowed": ["exact"],
-        "maximum_capacity": ["exact", "gte", "gt", "lte", "lt", "isnull"],
-        "count_staff_in_occupancy": ["exact"],
-        "count_service_personnel_in_occupancy": ["exact"],
+        "id": key_filters,
+        "name": string_filters,
+        "parent_area": key_filters,
+        "category": string_filters,
+        "requires_reservation": boolean_filters,
+        "buddy_system_allowed": boolean_filters,
+        "maximum_capacity": number_filters,
+        "count_staff_in_occupancy": boolean_filters,
+        "count_service_personnel_in_occupancy": boolean_filters,
     }
 
 
@@ -281,12 +302,12 @@ class ResourceViewSet(ModelViewSet):
     queryset = Resource.objects.all()
     serializer_class = ResourceSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "name": ["exact", "iexact"],
-        "available": ["exact"],
-        "fully_dependent_tools": ["exact"],
-        "partially_dependent_tools": ["exact"],
-        "dependent_areas": ["exact"],
+        "id": key_filters,
+        "name": string_filters,
+        "available": boolean_filters,
+        "fully_dependent_tools": manykey_filters,
+        "partially_dependent_tools": manykey_filters,
+        "dependent_areas": manykey_filters,
     }
 
 
@@ -295,16 +316,16 @@ class ConfigurationViewSet(ModelViewSet):
     queryset = Configuration.objects.all()
     serializer_class = ConfigurationSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "name": ["exact", "iexact", "in"],
-        "tool_id": ["exact", "in", "isnull"],
-        "tool": ["exact", "in", "isnull"],
-        "advance_notice_limit": ["exact", "in", "gte", "gt", "lte", "lt"],
-        "display_order": ["exact", "in", "gte", "gt", "lte", "lt"],
-        "maintainers": ["exact", "isnull"],
-        "qualified_users_are_maintainers": ["exact"],
-        "exclude_from_configuration_agenda": ["exact"],
-        "enabled": ["exact"],
+        "id": key_filters,
+        "name": string_filters,
+        "tool_id": key_filters,
+        "tool": key_filters,
+        "advance_notice_limit": number_filters,
+        "display_order": number_filters,
+        "maintainers": manykey_filters,
+        "qualified_users_are_maintainers": boolean_filters,
+        "exclude_from_configuration_agenda": boolean_filters,
+        "enabled": boolean_filters,
     }
 
 
@@ -313,12 +334,37 @@ class ConfigurationOptionViewSet(ModelViewSet):
     queryset = ConfigurationOption.objects.all()
     serializer_class = ConfigurationOptionSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "name": ["exact", "iexact", "in"],
-        "reservation_id": ["exact", "in", "isnull"],
-        "reservation": ["exact", "in", "isnull"],
-        "configuration_id": ["exact", "in", "isnull"],
-        "configuration": ["exact", "in", "isnull"],
+        "id": key_filters,
+        "name": string_filters,
+        "reservation_id": key_filters,
+        "reservation": key_filters,
+        "configuration_id": key_filters,
+        "configuration": key_filters,
+    }
+
+
+class RecurringConsumableChargesViewSet(ModelViewSet):
+    filename = "recurring_consumable_charges"
+    queryset = RecurringConsumableCharge.objects.all()
+    serializer_class = RecurringConsumableChargeSerializer
+    filterset_fields = {
+        "id": key_filters,
+        "customer_id": key_filters,
+        "customer": key_filters,
+        "consumable_id": key_filters,
+        "consumable": key_filters,
+        "project_id": key_filters,
+        "project": key_filters,
+        "quantity": number_filters,
+        "last_charge": datetime_filters,
+        "rec_start": date_filters,
+        "rec_frequency": number_filters,
+        "rec_interval": number_filters,
+        "rec_until": date_filters,
+        "rec_count": number_filters,
+        "last_updated": datetime_filters,
+        "last_updated_by": key_filters,
+        "last_updated_by_id": key_filters,
     }
 
 
@@ -327,24 +373,24 @@ class ReservationViewSet(ModelViewSet):
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "start": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "end": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "project_id": ["exact", "in"],
-        "project": ["exact", "in"],
-        "user_id": ["exact", "in"],
-        "user": ["exact", "in"],
-        "creator_id": ["exact", "in"],
-        "creator": ["exact", "in"],
-        "tool_id": ["exact", "in", "isnull"],
-        "tool": ["exact", "in", "isnull"],
-        "area_id": ["exact", "in", "isnull"],
-        "area": ["exact", "in", "isnull"],
-        "cancelled": ["exact"],
-        "missed": ["exact"],
-        "validated": ["exact"],
-        "validated_by": ["exact", "in", "isnull"],
-        "question_data": ["isnull", "isempty"],
+        "id": key_filters,
+        "start": datetime_filters,
+        "end": datetime_filters,
+        "project_id": key_filters,
+        "project": key_filters,
+        "user_id": key_filters,
+        "user": key_filters,
+        "creator_id": key_filters,
+        "creator": key_filters,
+        "tool_id": key_filters,
+        "tool": key_filters,
+        "area_id": key_filters,
+        "area": key_filters,
+        "cancelled": boolean_filters,
+        "missed": boolean_filters,
+        "validated": boolean_filters,
+        "validated_by": key_filters,
+        "question_data": string_filters,
     }
 
 
@@ -363,19 +409,19 @@ class UsageEventViewSet(ModelViewSet):
     queryset = UsageEvent.objects.all()
     serializer_class = UsageEventSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "start": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "end": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "project_id": ["exact", "in"],
-        "project": ["exact", "in"],
-        "user_id": ["exact", "in"],
-        "user": ["exact", "in"],
-        "operator_id": ["exact", "in"],
-        "operator": ["exact", "in"],
-        "tool_id": ["exact", "in"],
-        "tool": ["exact", "in"],
-        "validated": ["exact"],
-        "validated_by": ["exact", "in", "isnull"],
+        "id": key_filters,
+        "start": datetime_filters,
+        "end": datetime_filters,
+        "project_id": key_filters,
+        "project": key_filters,
+        "user_id": key_filters,
+        "user": key_filters,
+        "operator_id": key_filters,
+        "operator": key_filters,
+        "tool_id": key_filters,
+        "tool": key_filters,
+        "validated": boolean_filters,
+        "validated_by": key_filters,
     }
 
 
@@ -384,19 +430,19 @@ class AreaAccessRecordViewSet(ModelViewSet):
     queryset = AreaAccessRecord.objects.all().order_by("-start")
     serializer_class = AreaAccessRecordSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "start": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "end": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "project_id": ["exact", "in"],
-        "project": ["exact", "in"],
-        "customer_id": ["exact", "in"],
-        "customer": ["exact", "in"],
-        "area_id": ["exact", "in"],
-        "area": ["exact", "in"],
-        "staff_charge_id": ["exact", "isnull", "in"],
-        "staff_charge": ["exact", "isnull", "in"],
-        "validated": ["exact"],
-        "validated_by": ["exact", "in", "isnull"],
+        "id": key_filters,
+        "start": datetime_filters,
+        "end": datetime_filters,
+        "project_id": key_filters,
+        "project": key_filters,
+        "customer_id": key_filters,
+        "customer": key_filters,
+        "area_id": key_filters,
+        "area": key_filters,
+        "staff_charge_id": key_filters,
+        "staff_charge": key_filters,
+        "validated": boolean_filters,
+        "validated_by": key_filters,
     }
 
 
@@ -405,23 +451,23 @@ class TaskViewSet(ModelViewSet):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "urgency": ["exact", "gte", "gt", "lte", "lt"],
-        "tool_id": ["exact", "in"],
-        "tool": ["exact", "in"],
-        "force_shutdown": ["exact"],
-        "safety_hazard": ["exact"],
-        "creator_id": ["exact", "in"],
-        "creator": ["exact", "in"],
-        "creation_time": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "estimated_resolution_time": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "problem_category": ["exact", "in"],
-        "cancelled": ["exact"],
-        "resolved": ["exact"],
-        "resolution_time": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "resolver_id": ["exact", "in"],
-        "resolver": ["exact", "in"],
-        "resolution_category": ["exact", "in"],
+        "id": key_filters,
+        "urgency": number_filters,
+        "tool_id": key_filters,
+        "tool": key_filters,
+        "force_shutdown": boolean_filters,
+        "safety_hazard": boolean_filters,
+        "creator_id": key_filters,
+        "creator": key_filters,
+        "creation_time": datetime_filters,
+        "estimated_resolution_time": datetime_filters,
+        "problem_category": key_filters,
+        "cancelled": boolean_filters,
+        "resolved": boolean_filters,
+        "resolution_time": datetime_filters,
+        "resolver_id": key_filters,
+        "resolver": key_filters,
+        "resolution_category": key_filters,
     }
 
 
@@ -430,18 +476,18 @@ class ScheduledOutageViewSet(ModelViewSet):
     queryset = ScheduledOutage.objects.all()
     serializer_class = ScheduledOutageSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "start": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "end": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "creator_id": ["exact", "in"],
-        "creator": ["exact", "in"],
-        "category": ["exact", "in"],
-        "tool_id": ["exact", "in", "isnull"],
-        "tool": ["exact", "in", "isnull"],
-        "area_id": ["exact", "in", "isnull"],
-        "area": ["exact", "in", "isnull"],
-        "resource_id": ["exact", "in", "isnull"],
-        "resource": ["exact", "in", "isnull"],
+        "id": key_filters,
+        "start": datetime_filters,
+        "end": datetime_filters,
+        "creator_id": key_filters,
+        "creator": key_filters,
+        "category": string_filters,
+        "tool_id": key_filters,
+        "tool": key_filters,
+        "area_id": key_filters,
+        "area": key_filters,
+        "resource_id": key_filters,
+        "resource": key_filters,
     }
 
 
@@ -450,18 +496,18 @@ class StaffChargeViewSet(ModelViewSet):
     queryset = StaffCharge.objects.all()
     serializer_class = StaffChargeSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "staff_member_id": ["exact", "in"],
-        "staff_member": ["exact", "in"],
-        "customer_id": ["exact", "in"],
-        "customer": ["exact", "in"],
-        "project_id": ["exact", "in"],
-        "project": ["exact", "in"],
-        "start": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "end": ["month", "year", "day", "gte", "gt", "lte", "lt", "isnull"],
-        "validated": ["exact"],
-        "validated_by": ["exact", "in", "isnull"],
-        "note": ["contains"],
+        "id": key_filters,
+        "staff_member_id": key_filters,
+        "staff_member": key_filters,
+        "customer_id": key_filters,
+        "customer": key_filters,
+        "project_id": key_filters,
+        "project": key_filters,
+        "start": datetime_filters,
+        "end": datetime_filters,
+        "validated": boolean_filters,
+        "validated_by": key_filters,
+        "note": string_filters,
     }
 
 
@@ -470,21 +516,21 @@ class TrainingSessionViewSet(ModelViewSet):
     queryset = TrainingSession.objects.all()
     serializer_class = TrainingSessionSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "trainer_id": ["exact", "in"],
-        "trainer": ["exact", "in"],
-        "trainee_id": ["exact", "in"],
-        "trainee": ["exact", "in"],
-        "tool_id": ["exact", "in"],
-        "tool": ["exact", "in"],
-        "project_id": ["exact", "in"],
-        "project": ["exact", "in"],
-        "duration": ["exact", "gte", "lte", "gt", "lt"],
-        "type": ["exact", "in"],
-        "date": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "qualified": ["exact"],
-        "validated": ["exact"],
-        "validated_by": ["exact", "in", "isnull"],
+        "id": key_filters,
+        "trainer_id": key_filters,
+        "trainer": key_filters,
+        "trainee_id": key_filters,
+        "trainee": key_filters,
+        "tool_id": key_filters,
+        "tool": key_filters,
+        "project_id": key_filters,
+        "project": key_filters,
+        "duration": number_filters,
+        "type": number_filters,
+        "date": datetime_filters,
+        "qualified": boolean_filters,
+        "validated": boolean_filters,
+        "validated_by": key_filters,
     }
 
 
@@ -492,7 +538,7 @@ class ConsumableCategoryViewSet(ModelViewSet):
     filename = "consumable_categories"
     queryset = ConsumableCategory.objects.all()
     serializer_class = ConsumableCategorySerializer
-    filterset_fields = {"id": ["exact", "in"], "name": ["exact", "iexact"]}
+    filterset_fields = {"id": key_filters, "name": string_filters}
 
 
 class ConsumableViewSet(ModelViewSet):
@@ -500,14 +546,14 @@ class ConsumableViewSet(ModelViewSet):
     queryset = Consumable.objects.all()
     serializer_class = ConsumableSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "category_id": ["exact", "in"],
-        "category": ["exact", "in"],
-        "quantity": ["exact", "gte", "lte", "gt", "lt"],
-        "reminder_threshold": ["exact", "gte", "lte", "gt", "lt"],
-        "visible": ["exact"],
-        "reusable": ["exact"],
-        "reminder_threshold_reached": ["exact"],
+        "id": key_filters,
+        "category_id": key_filters,
+        "category": key_filters,
+        "quantity": number_filters,
+        "reminder_threshold": number_filters,
+        "visible": boolean_filters,
+        "reusable": boolean_filters,
+        "reminder_threshold_reached": boolean_filters,
     }
 
 
@@ -516,19 +562,19 @@ class ConsumableWithdrawViewSet(ModelViewSet):
     queryset = ConsumableWithdraw.objects.all()
     serializer_class = ConsumableWithdrawSerializer
     filterset_fields = {
-        "id": ["exact", "in"],
-        "customer_id": ["exact", "in"],
-        "customer": ["exact", "in"],
-        "merchant_id": ["exact", "in"],
-        "merchant": ["exact", "in"],
-        "consumable_id": ["exact", "in"],
-        "consumable": ["exact", "in"],
-        "project_id": ["exact", "in"],
-        "project": ["exact", "in"],
-        "quantity": ["exact", "gte", "lte", "gt", "lt"],
-        "date": ["month", "year", "day", "gte", "gt", "lte", "lt"],
-        "validated": ["exact"],
-        "validated_by": ["exact", "in", "isnull"],
+        "id": key_filters,
+        "customer_id": key_filters,
+        "customer": key_filters,
+        "merchant_id": key_filters,
+        "merchant": key_filters,
+        "consumable_id": key_filters,
+        "consumable": key_filters,
+        "project_id": key_filters,
+        "project": key_filters,
+        "quantity": number_filters,
+        "date": datetime_filters,
+        "validated": boolean_filters,
+        "validated_by": key_filters,
     }
 
 
@@ -537,8 +583,9 @@ class ContentTypeViewSet(XLSXFileMixin, viewsets.ReadOnlyModelViewSet):
     queryset = ContentType.objects.all()
     serializer_class = ContentTypeSerializer
     filterset_fields = {
-        "app_label": ["exact", "in"],
-        "model": ["exact", "in"],
+        "id": key_filters,
+        "app_label": string_filters,
+        "model": string_filters,
     }
 
     def get_filename(self, *args, **kwargs):
@@ -550,8 +597,9 @@ class InterlockCardCategoryViewSet(ModelViewSet):
     queryset = InterlockCardCategory.objects.all()
     serializer_class = InterlockCardCategorySerializer
     filterset_fields = {
-        "name": ["exact", "iexact", "in"],
-        "key": ["exact", "iexact", "in"],
+        "id": key_filters,
+        "name": string_filters,
+        "key": string_filters,
     }
 
 
@@ -560,13 +608,14 @@ class InterlockCardViewSet(ModelViewSet):
     queryset = InterlockCard.objects.all()
     serializer_class = InterlockCardSerializer
     filterset_fields = {
-        "name": ["exact", "iexact", "in"],
-        "server": ["exact", "iexact", "in"],
-        "number": ["exact", "in", "gte", "lte", "gt", "lt"],
-        "even_port": ["exact", "in", "gte", "lte", "gt", "lt"],
-        "odd_port": ["exact", "in", "gte", "lte", "gt", "lt"],
-        "category": ["exact", "in"],
-        "enabled": ["exact"],
+        "id": key_filters,
+        "name": string_filters,
+        "server": string_filters,
+        "number": number_filters,
+        "even_port": number_filters,
+        "odd_port": number_filters,
+        "category": key_filters,
+        "enabled": boolean_filters,
     }
 
 
@@ -575,11 +624,104 @@ class InterlockViewSet(ModelViewSet):
     queryset = Interlock.objects.all()
     serializer_class = InterlockSerializer
     filterset_fields = {
-        "card": ["exact", "in"],
-        "channel": ["exact", "in", "gte", "lte", "gt", "lt"],
-        "unit_id": ["exact", "in", "gte", "lte", "gt", "lt"],
-        "state": ["exact", "in", "gte", "lte", "gt", "lt"],
-        "most_recent_reply_time": ["exact", "in", "gte", "lte", "gt", "lt"],
+        "id": key_filters,
+        "card": key_filters,
+        "channel": number_filters,
+        "unit_id": number_filters,
+        "state": number_filters,
+        "most_recent_reply_time": datetime_filters,
+    }
+
+
+class PhysicalAccessLevelViewSet(ModelViewSet):
+    filename = "physical_access_levels"
+    queryset = PhysicalAccessLevel.objects.all()
+    serializer_class = PhysicalAccessLevelSerializer
+    filterset_fields = {
+        "id": key_filters,
+        "name": string_filters,
+        "area": key_filters,
+        "schedule": number_filters,
+        "weekdays_start_time": datetime_filters,
+        "weekdays_end_time": datetime_filters,
+        "allow_staff_access": boolean_filters,
+        "allow_user_request": boolean_filters,
+    }
+
+
+class BuddyRequestViewSet(ModelViewSet):
+    filename = "buddy_requests"
+    queryset = BuddyRequest.objects.all()
+    serializer_class = BuddyRequestSerializer
+    filterset_fields = {
+        "id": key_filters,
+        "creation_time": datetime_filters,
+        "start": date_filters,
+        "end": date_filters,
+        "description": string_filters,
+        "area": key_filters,
+        "user": key_filters,
+        "expired": boolean_filters,
+        "deleted": boolean_filters,
+    }
+
+
+class TemporaryPhysicalAccessRequestViewSet(ModelViewSet):
+    filename = "physical_access_requests"
+    queryset = TemporaryPhysicalAccessRequest.objects.all()
+    serializer_class = TemporaryPhysicalAccessRequestSerializer
+    filterset_fields = {
+        "id": key_filters,
+        "creation_time": datetime_filters,
+        "creator": key_filters,
+        "last_updated": datetime_filters,
+        "last_updated_by": key_filters,
+        "physical_access_level": key_filters,
+        "description": string_filters,
+        "start_time": datetime_filters,
+        "end_time": datetime_filters,
+        "other_users": manykey_filters,
+        "status": number_filters,
+        "reviewer": key_filters,
+        "deleted": boolean_filters,
+    }
+
+
+class AdjustmentRequestViewSet(ModelViewSet):
+    filename = "adjustment_requests"
+    queryset = AdjustmentRequest.objects.all()
+    serializer_class = AdjustmentRequestSerializer
+    filterset_fields = {
+        "id": key_filters,
+        "creation_time": datetime_filters,
+        "creator": key_filters,
+        "last_updated": datetime_filters,
+        "last_updated_by": key_filters,
+        "item_type": key_filters,
+        "item_id": number_filters,
+        "description": string_filters,
+        "manager_note": string_filters,
+        "new_start": datetime_filters,
+        "new_end": datetime_filters,
+        "status": number_filters,
+        "reviewer": key_filters,
+        "applied": boolean_filters,
+        "applied_by": key_filters,
+        "deleted": boolean_filters,
+    }
+
+
+class ToolCredentialsViewSet(ModelViewSet):
+    filename = "tool_credentials"
+    queryset = ToolCredentials.objects.all()
+    serializer_class = ToolCredentialsSerializer
+    filterset_fields = {
+        "id": key_filters,
+        "tool": key_filters,
+        "username": string_filters,
+        "password": string_filters,
+        "comments": string_filters,
+        "authorized_staff": manykey_filters,
     }
 
 
@@ -588,8 +730,8 @@ class GroupViewSet(ModelViewSet):
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
     filterset_fields = {
-        "name": ["exact", "iexact", "in"],
-        "permissions": ["exact"],
+        "name": string_filters,
+        "permissions": manykey_filters,
     }
 
 
@@ -599,10 +741,10 @@ class PermissionViewSet(XLSXFileMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
     filterset_fields = {
-        "name": ["exact", "iexact", "in"],
-        "codename": ["exact", "iexact", "in"],
-        "content_type_id": ["exact", "in"],
-        "content_type": ["exact", "in"],
+        "name": string_filters,
+        "codename": string_filters,
+        "content_type_id": key_filters,
+        "content_type": key_filters,
     }
 
     def get_filename(self, *args, **kwargs):
