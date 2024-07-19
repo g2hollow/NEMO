@@ -48,6 +48,7 @@ from NEMO.views import (
     news,
     qualifications,
     remote_work,
+    reservation_policy,
     resources,
     safety,
     sidebar,
@@ -293,6 +294,8 @@ urlpatterns += [
     path("qualifications/", qualifications.qualifications, name="qualifications"),
     path("modify_qualifications/", qualifications.modify_qualifications, name="modify_qualifications"),
     path("get_qualified_users/", qualifications.get_qualified_users, name="get_qualified_users"),
+    # Reservation Policy
+    path("reservation_policy/", reservation_policy.reservation_policy, name="reservation_policy"),
     # Remote work:
     path("remote_work/", remote_work.remote_work, name="remote_work"),
     path("staff_charges/", remote_work.staff_charges, name="staff_charges"),
