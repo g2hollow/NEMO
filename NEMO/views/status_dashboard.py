@@ -495,7 +495,7 @@ def merge(tools, tasks, unavailable_resources, usage_events, scheduled_outages, 
             result[tool.tool_or_parent_id()]["get_tool_info_html"] = tool.get_tool_info_html()
     for task in tasks:
         result[task.tool.id]["problematic"] = True
-        result[task.tool.id]["problem_description"] += task.problem_description+'<br/><br/>'
+        result[task.tool.id]["problem_description"] += str(task.creation_time.date())+': '+task.problem_description+'<br/><br/>'
     for event in usage_events:
         result[event.tool.tool_or_parent_id()]["operator"] = str(event.operator)
         result[event.tool.tool_or_parent_id()]["user"] = str(event.operator)
