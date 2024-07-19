@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% load custom_tags_and_filters %}
+{% block title %}Reservation Policy{% endblock %}
+{% block content %}
+    <h1>Reservation Policy</h1>
+    <p>
+        Displays policies applied when making reservations.
+    </p>
+    <table class="table table-bordered table-condensed">
+    <thead>
+        <tr>
+            <th>Tool</th>
+            <th>Maximum two week reservation time (minutes)</th>
+	    <th>Total time of your future reservations (minutes)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tool,res in tools %}
+	<tr>
+		<td>{{tool.name}}</td>
+		<td>{{tool.maximum_future_reservation_time}}</td>
+		<td>{{res}}</td>
+	</tr>
+	{% endfor %}
+    </tbody>
+    </table>
+{% endblock %}
